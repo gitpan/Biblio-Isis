@@ -6,11 +6,15 @@ use blib;
 use Data::Dumper;
 
 use Test::More tests => 110;
+use File::Spec;
 
 BEGIN { use_ok( 'Biblio::Isis' ); }
 
 my $debug = shift @ARGV;
 my $isis;
+
+my $path_winisis = File::Spec->catfile('data', 'winisis', 'BIBL');
+my $path_isismarc = File::Spec->catfile('data', 'isismarc', 'BIBL');
 
 sub test_data {
 
@@ -123,7 +127,7 @@ sub test_data {
 }
 
 $isis = Biblio::Isis->new (
-	isisdb => './data/winisis/BIBL',
+	isisdb => $path_winisis,
 	include_deleted => 1,
 	debug => $debug,
 );
@@ -142,7 +146,7 @@ test_data(
 );
 
 $isis = Biblio::Isis->new (
-	isisdb => './data/isismarc/BIBL',
+	isisdb => $path_isismarc,
 	include_deleted => 1,
 );
 
@@ -159,7 +163,7 @@ test_data(
 # check logically deleted
 
 $isis = Biblio::Isis->new (
-	isisdb => './data/winisis/BIBL',
+	isisdb => $path_winisis,
 	include_deleted => 1,
 );
 
@@ -167,7 +171,7 @@ ok($isis->fetch(3), "deleted found");
 cmp_ok($isis->{deleted}, '==', 3, "MFN 3 is deleted");
 
 $isis = Biblio::Isis->new (
-	isisdb => './data/winisis/BIBL',
+	isisdb => $path_winisis,
 	debug => $debug,
 );
 

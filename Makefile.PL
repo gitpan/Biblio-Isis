@@ -10,6 +10,7 @@ WriteMakefile(
 		'Test::Simple' => 0.44,
 		'Carp' => 0,
 		'File::Glob' => 0,
+		'File::Spec' => 0,
 	},
 	depend => {
 		dist => 'changelog',
