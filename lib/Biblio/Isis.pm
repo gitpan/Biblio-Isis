@@ -9,7 +9,7 @@ use Data::Dumper;
 BEGIN {
 	use Exporter ();
 	use vars qw ($VERSION @ISA @EXPORT @EXPORT_OK %EXPORT_TAGS);
-	$VERSION     = 0.12;
+	$VERSION     = 0.13;
 	@ISA         = qw (Exporter);
 	#Give a hoot don't pollute, do not export more than needed by default
 	@EXPORT      = qw ();
@@ -264,7 +264,15 @@ sub fetch {
 
 	# read XRFMFB abd XRFMFP
 	read($self->{'fileXRF'}, $buff, 4);
-	my $pointer=unpack("V",$buff) || croak "pointer is null";
+	my $pointer=unpack("V",$buff);
+	if (! $pointer) {
+		if ($self->{include_deleted}) {
+			return;
+		} else {
+			warn "pointer for MFN $mfn is null\n";
+			return;
+		}
+	}
 
 	# check for logically deleted record
 	if ($pointer & 0x80000000) {
@@ -393,7 +401,7 @@ sub to_ascii {
 
 	my $mfn = shift || croak "need MFN";
 
-	my $rec = $self->fetch($mfn);
+	my $rec = $self->fetch($mfn) || return;
 
 	my $out = "0\t$mfn";
 
@@ -461,7 +469,7 @@ sub to_hash {
 	# init record to include MFN as field 000
 	my $rec = { '000' => [ $mfn ] };
 
-	my $row = $self->fetch($mfn);
+	my $row = $self->fetch($mfn) || return;
 
 	foreach my $k (keys %{$row}) {
 		foreach my $l (@{$row->{$k}}) {

@@ -7,7 +7,7 @@ WriteMakefile(
 	AUTHOR => 'Dobrica Pavlinusic (dpavlin@rot13.org)',
 	ABSTRACT_FROM => 'lib/Biblio/Isis.pm',
 	PREREQ_PM => {
-		'Test::Simple' => 0.44,
+		'Test::More' => 0,
 		'Carp' => 0,
 		'File::Glob' => 0,
 		'File::Spec' => 0,
