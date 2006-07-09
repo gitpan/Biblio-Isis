@@ -11,3 +11,4 @@ Makefile
 Makefile.old
 scripts/.svn/
 t/.svn/
+blib

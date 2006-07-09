@@ -4,22 +4,38 @@ use strict;
 use blib;
 
 use Biblio::Isis;
-use Data::Dumper;
+use Getopt::Std;
 
-my $isisdb = shift @ARGV || '/data/isis_data/ps/LIBRI/LIBRI',
-my $debug = shift @ARGV;
+BEGIN {
+	eval "use Data::Dump";
+
+	if (! $@) {
+		*Dumper = *Data::Dump::dump;
+	} else {
+		use Data::Dumper;
+	}
+}
+
+my %opt;
+getopts('dn:', \%opt);
+
+my $isisdb = shift @ARGV || die "usage: $0 [-n number] [-d] /path/to/isis/BIBL\n";
 
 my $isis = Biblio::Isis->new (
 	isisdb => $isisdb,
-	debug => $debug,
+	debug => $opt{'d'} ? 2 : 0,
 	include_deleted => 1,
 #	read_fdt => 1,
 );
 
 print "rows: ",$isis->count,"\n\n";
 
-for(my $mfn = 1; $mfn <= $isis->count; $mfn++) {
-	print STDERR Dumper($isis->to_hash($mfn)),"\n" if ($debug);
+my $min = 1;
+my $max = $isis->count;
+$max = $opt{n} if ($opt{n});
+
+for my $mfn ($min .. $max) {
+	print STDERR Dumper($isis->to_hash($mfn)),"\n" if ($opt{'d'});
 	print $isis->to_ascii($mfn),"\n";
 
 }

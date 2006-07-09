@@ -6,10 +6,10 @@ Changes
 Makefile.PL
 lib/Biblio/Isis.pm
 lib/Biblio/Isis/Manual.pod
-t/001_load.t
-t/002_isis.t
-t/998_pod-coverage.t
-t/999_pod.t
+t/1_load.t
+t/2_isis.t
+t/9_pod-coverage.t
+t/9_pod.t
 scripts/dump_isisdb.pl
 scripts/dump_openisis.pl
 scripts/bench.pl

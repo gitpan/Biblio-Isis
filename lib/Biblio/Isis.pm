@@ -4,12 +4,10 @@ use strict;
 use Carp;
 use File::Glob qw(:globally :nocase);
 
-use Data::Dumper;
-
 BEGIN {
 	use Exporter ();
 	use vars qw ($VERSION @ISA @EXPORT @EXPORT_OK %EXPORT_TAGS);
-	$VERSION     = 0.13;
+	$VERSION     = 0.21;
 	@ISA         = qw (Exporter);
 	#Give a hoot don't pollute, do not export more than needed by default
 	@EXPORT      = qw ();
@@ -90,6 +88,7 @@ Open ISIS database
 		$v =~ s#foo#bar#g;
 	},
 	debug => 1,
+	join_subfields_with => ' ; ',
  );
 
 Options are described below:
@@ -119,7 +118,13 @@ Filter code ref which will be used before data is converted to hash.
 
 =item debug
 
-Dump a B<lot> of debugging output.
+Dump a B<lot> of debugging output even at level 1. For even more increase level.
+
+=item join_subfields_with
+
+Define delimiter which will be used to join repeatable subfields. This
+option is included to support lagacy application written against version
+older than 0.21 of this module. By default, it disabled. See L</to_hash>.
 
 =back
 
@@ -153,7 +158,16 @@ sub new {
 		}
 	}
 
-	print STDERR "## using files: ",join(" ",@isis_files),"\n" if ($self->{debug});
+	if ($self->{debug}) {
+		print STDERR "## using files: ",join(" ",@isis_files),"\n";
+		eval "use Data::Dump";
+
+		if (! $@) {
+			*Dumper = *Data::Dump::dump;
+		} else {
+			use Data::Dumper;
+		}
+	}
 
 	# if you want to read .FDT file use read_fdt argument when creating class!
 	if ($self->{read_fdt} && -e $self->{fdt_file}) {
@@ -202,7 +216,7 @@ sub new {
 	read($self->{'fileMST'}, $buff, 4) || croak "can't read NXTMFN from MST: $!";
 	$self->{'NXTMFN'}=unpack("V",$buff) || croak "NXTNFN is zero";
 
-	print STDERR Dumper($self),"\n" if ($self->{debug});
+	print STDERR "## self ",Dumper($self),"\n" if ($self->{debug});
 
 	# open files for later
 	open($self->{'fileXRF'}, $self->{xrf_file}) || croak "can't open '$self->{xrf_file}': $!";
@@ -378,6 +392,24 @@ sub fetch {
 	return $self->{'record'};
 }
 
+=head2 mfn
+
+Returns current MFN position
+
+  my $mfn = $isis->mfn;
+
+=cut
+
+# This function should be simple return $self->{current_mfn},
+# but if new is called with _hack_mfn it becomes setter.
+# It's useful in tests when setting $isis->{record} directly
+
+sub mfn {
+	my $self = shift;
+	return $self->{current_mfn};
+};
+
+
 =head2 to_ascii
 
 Returns ASCII output of record with specified MFN
@@ -457,27 +489,99 @@ which will be used for identifiers, C<i1> and C<i2> like this:
              }
            ],
 
+In case there are repeatable subfields in record, this will create
+following structure:
+
+  '900' => [ {
+  	'a' => [ 'foo', 'bar', 'baz' ],
+  }]
+
+Or in more complex example of
+
+  902	^aa1^aa2^aa3^bb1^aa4^bb2^cc1^aa5
+
+it will create
+
+  902   => [
+	{ a => ["a1", "a2", "a3", "a4", "a5"], b => ["b1", "b2"], c => "c1" },
+  ],
+
+This behaviour can be changed using C<join_subfields_with> option to L</new>,
+in which case C<to_hash> will always create single value for each subfield.
+This will change result to:
+
+
+
 This method will also create additional field C<000> with MFN.
+
+There is also more elaborative way to call C<to_hash> like this:
+
+  my $hash = $isis->to_hash({
+  	mfn => 42,
+	include_subfields => 1,
+  });
+
+Each option controll creation of hash:
+
+=over 4
+
+=item mfn
+
+Specify MFN number of record
+
+=item include_subfields
+
+This option will create additional key in hash called C<subfields> which will
+have original record subfield order and index to that subfield like this:
+
+  902   => [ {
+	a => ["a1", "a2", "a3", "a4", "a5"],
+	b => ["b1", "b2"],
+	c => "c1",
+	subfields => ["a", 0, "a", 1, "a", 2, "b", 0, "a", 3, "b", 1, "c", 0, "a", 4],
+  } ],
+
+=item join_subfields_with
+
+Define delimiter which will be used to join repeatable subfields. You can
+specify option here instead in L</new> if you want to have per-record control.
+
+=back
 
 =cut
 
 sub to_hash {
 	my $self = shift;
 
+
 	my $mfn = shift || confess "need mfn!";
+	my $arg;
+
+	if (ref($mfn) eq 'HASH') {
+		$arg = $mfn;
+		$mfn = $arg->{mfn} || confess "need mfn in arguments";
+	}
 
 	# init record to include MFN as field 000
 	my $rec = { '000' => [ $mfn ] };
 
 	my $row = $self->fetch($mfn) || return;
 
-	foreach my $k (keys %{$row}) {
-		foreach my $l (@{$row->{$k}}) {
+	my $j_rs = $arg->{join_subfields_with};
+	$j_rs = $self->{join_subfields_with} unless(defined($j_rs));
+	my $i_sf = $arg->{include_subfields};
+
+	foreach my $f_nr (keys %{$row}) {
+		foreach my $l (@{$row->{$f_nr}}) {
 
 			# filter output
-			$l = $self->{'hash_filter'}->($l) if ($self->{'hash_filter'});
+			if ($self->{'hash_filter'}) {
+				$l = $self->{'hash_filter'}->($l);
+				next unless defined($l);
+			}
 
 			my $val;
+			my $r_sf;	# repeatable subfields in this record
 
 			# has identifiers?
 			($val->{'i1'},$val->{'i2'}) = ($1,$2) if ($l =~ s/^([01 #])([01 #])\^/\^/);
@@ -486,13 +590,43 @@ sub to_hash {
 			if ($l =~ m/\^/) {
 				foreach my $t (split(/\^/,$l)) {
 					next if (! $t);
-					$val->{substr($t,0,1)} = substr($t,1);
+					my ($sf,$v) = (substr($t,0,1), substr($t,1));
+					# XXX this might be option, but why?
+					next unless ($v);
+#					warn "### $f_nr^$sf:$v",$/ if ($self->{debug} > 1);
+
+					if (ref( $val->{$sf} ) eq 'ARRAY') {
+
+						push @{ $val->{$sf} }, $v;
+
+						# record repeatable subfield it it's offset
+						push @{ $val->{subfields} }, ( $sf, $#{ $val->{$sf} } ) if (! $j_rs && $i_sf);
+						$r_sf->{$sf}++;
+
+					} elsif (defined( $val->{$sf} )) {
+
+						# convert scalar field to array
+						$val->{$sf} = [ $val->{$sf}, $v ];
+
+						push @{ $val->{subfields} }, ( $sf, 1 ) if (! $j_rs && $i_sf);
+						$r_sf->{$sf}++;
+
+					} else {
+						$val->{$sf} = $v;
+						push @{ $val->{subfields} }, ( $sf, 0 ) if ($i_sf);
+					}
 				}
 			} else {
 				$val = $l;
 			}
 
-			push @{$rec->{$k}}, $val;
+			if ($j_rs) {
+				map {
+					$val->{$_} = join($j_rs, @{ $val->{$_} });
+				} keys %$r_sf
+			}
+
+			push @{$rec->{$f_nr}}, $val;
 		}
 	}
 
@@ -605,6 +739,31 @@ module with databases from programs other than WinIsis and IsisMarc. I had
 tested this against ouput of one C<isis.dll>-based application, but I don't
 know any details about it's version.
 
+=head1 VERSIONS
+
+As this is young module, new features are added in subsequent version. It's
+a good idea to specify version when using this module like this:
+
+  use Biblio::Isis 0.21
+
+Below is list of changes in specific version of module (so you can target
+older versions if you really have to):
+
+=over 8 
+
+=item 0.21
+
+Added C<join_subfields_with> to L</new> and L</to_hash>.
+
+Added C<include_subfields> to L</to_hash>.
+
+=item 0.20
+
+Added C<< $isis->mfn >>, support for repeatable subfields and
+C<< $isis->to_hash({ mfn => 42, ... }) >> calling convention
+
+=back
+
 =head1 AUTHOR
 
 	Dobrica Pavlinusic
@@ -625,6 +784,8 @@ LICENSE file included with this module.
 
 
 =head1 SEE ALSO
+
+L<Biblio::Isis::Manual> for CDS/ISIS manual appendix F, G and H which describe file format
 
 OpenIsis web site L<http://www.openisis.org>
 

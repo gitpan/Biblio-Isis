@@ -23,13 +23,13 @@ sub MY::postamble {
 HTML_DIR=pod2html
 
 html: $(TO_INST_PM)
-	test -e $(HTML_DIR) && rm -Rf $(HTML_DIR)
+	test -e $(HTML_DIR) && rm -Rf $(HTML_DIR) || true
 	mkdir $(HTML_DIR)
-	perl -MPod::Simple::HTMLBatch -e 'Pod::Simple::HTMLBatch::go' lib/ pod2html/
+	allpod2xhtml.pl lib/ $(HTML_DIR)
 	test ! -z "`which svn2html.pl`" && svn update && svn2html.pl > $(HTML_DIR)/Changes.html
 
 changelog:
-	svn update && svn -v log > Changes
+	svk update && svk -v log > Changes
 
 tags:
 	ctags *.p? */*.p?
@@ -41,5 +41,15 @@ cmp:
 bench:	all
 	cd ./scripts/ && ./bench.pl
 
+cpan:
+	make clean
+	rm -f Biblio-Isis-*.tar.gz
+	perl Makefile.PL
+	make changelog
+	make dist
+	make disttest
+	@echo
+	@echo -n "Upload" Biblio-Isis-*.tar.gz "to CPAN? [y/N]:"
+	@read upload && test "$$upload" == "y" && cpan-upload -verbose Biblio-Isis-*.tar.gz
 MAKE_MORE
 }
