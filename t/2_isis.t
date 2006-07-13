@@ -3,7 +3,7 @@
 use strict;
 use blib;
 
-use Test::More tests => 134;
+use Test::More tests => 174;
 use File::Spec;
 
 BEGIN {
@@ -192,6 +192,12 @@ diag "record = ",Dumper($isis->{record}) if ($debug);
 $isis = Biblio::Isis->new (
 	isisdb => $path_winisis,
 	debug => $debug,
+	hash_filter => sub {
+		my ($l,$nr) = @_;
+		ok(grep(/$nr/, keys %{ $isis->{record} }), "hash_filter $nr in record");
+		ok(grep(/\Q$l\E/, @{ $isis->{record}->{$nr} }), "hash_filter line $l found");
+		return($l);
+	},
 );
 
 ok(! $isis->fetch(3), "deleted not found");
@@ -271,3 +277,4 @@ is_deeply( $hash, {
             ],
    902   => [{ a => "a1 ; a2 ; a3 ; a4 ; a5", b => "b1 ; b2", c => "c1" }],
 }, 'hash is_deeply');
+

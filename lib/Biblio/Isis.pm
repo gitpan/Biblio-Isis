@@ -7,7 +7,7 @@ use File::Glob qw(:globally :nocase);
 BEGIN {
 	use Exporter ();
 	use vars qw ($VERSION @ISA @EXPORT @EXPORT_OK %EXPORT_TAGS);
-	$VERSION     = 0.21;
+	$VERSION     = 0.22;
 	@ISA         = qw (Exporter);
 	#Give a hoot don't pollute, do not export more than needed by default
 	@EXPORT      = qw ();
@@ -84,7 +84,7 @@ Open ISIS database
 	read_fdt => 1,
 	include_deleted => 1,
 	hash_filter => sub {
-		my $v = shift;
+		my ($v,$field_number) = @_;
 		$v =~ s#foo#bar#g;
 	},
 	debug => 1,
@@ -114,7 +114,9 @@ Don't skip logically deleted records in ISIS.
 
 =item hash_filter
 
-Filter code ref which will be used before data is converted to hash.
+Filter code ref which will be used before data is converted to hash. It will
+receive two arguments, whole line from current field (in C<< $_[0] >>) and
+field number (in C<< $_[1] >>).
 
 =item debug
 
@@ -576,7 +578,7 @@ sub to_hash {
 
 			# filter output
 			if ($self->{'hash_filter'}) {
-				$l = $self->{'hash_filter'}->($l);
+				$l = $self->{'hash_filter'}->($l, $f_nr);
 				next unless defined($l);
 			}
 
@@ -750,6 +752,10 @@ Below is list of changes in specific version of module (so you can target
 older versions if you really have to):
 
 =over 8 
+
+=item 0.22
+
+Added field number when calling C<hash_filter>
 
 =item 0.21
 
