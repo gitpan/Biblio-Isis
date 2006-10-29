@@ -7,7 +7,7 @@ use File::Glob qw(:globally :nocase);
 BEGIN {
 	use Exporter ();
 	use vars qw ($VERSION @ISA @EXPORT @EXPORT_OK %EXPORT_TAGS);
-	$VERSION     = 0.22;
+	$VERSION     = 0.23;
 	@ISA         = qw (Exporter);
 	#Give a hoot don't pollute, do not export more than needed by default
 	@EXPORT      = qw ();
@@ -139,8 +139,8 @@ sub new {
 
 	croak "new needs database name (isisdb) as argument!" unless ({@_}->{isisdb});
 
-	foreach my $v (qw{isisdb debug include_deleted hash_filter}) {
-		$self->{$v} = {@_}->{$v};
+	foreach my $v (qw{isisdb debug include_deleted hash_filter join_subfields_with}) {
+		$self->{$v} = {@_}->{$v} if defined({@_}->{$v});
 	}
 
 	my @isis_files = grep(/\.(FDT|MST|XRF|CNT)$/i,glob($self->{isisdb}."*"));
@@ -548,6 +548,10 @@ have original record subfield order and index to that subfield like this:
 Define delimiter which will be used to join repeatable subfields. You can
 specify option here instead in L</new> if you want to have per-record control.
 
+=item hash_filter
+
+You can override C<hash_filter> defined in L</new> using this option.
+
 =back
 
 =cut
@@ -559,9 +563,12 @@ sub to_hash {
 	my $mfn = shift || confess "need mfn!";
 	my $arg;
 
+	my $hash_filter = $self->{hash_filter};
+
 	if (ref($mfn) eq 'HASH') {
 		$arg = $mfn;
 		$mfn = $arg->{mfn} || confess "need mfn in arguments";
+		$hash_filter = $arg->{hash_filter} if ($arg->{hash_filter});
 	}
 
 	# init record to include MFN as field 000
@@ -569,7 +576,7 @@ sub to_hash {
 
 	my $row = $self->fetch($mfn) || return;
 
-	my $j_rs = $arg->{join_subfields_with};
+	my $j_rs = $arg->{join_subfields_with} || $self->{join_subfields_with};
 	$j_rs = $self->{join_subfields_with} unless(defined($j_rs));
 	my $i_sf = $arg->{include_subfields};
 
@@ -577,10 +584,8 @@ sub to_hash {
 		foreach my $l (@{$row->{$f_nr}}) {
 
 			# filter output
-			if ($self->{'hash_filter'}) {
-				$l = $self->{'hash_filter'}->($l, $f_nr);
-				next unless defined($l);
-			}
+			$l = $hash_filter->($l, $f_nr) if ($hash_filter);
+			next unless defined($l);
 
 			my $val;
 			my $r_sf;	# repeatable subfields in this record
@@ -594,7 +599,7 @@ sub to_hash {
 					next if (! $t);
 					my ($sf,$v) = (substr($t,0,1), substr($t,1));
 					# XXX this might be option, but why?
-					next unless ($v);
+					next unless (defined($v) && $v ne '');
 #					warn "### $f_nr^$sf:$v",$/ if ($self->{debug} > 1);
 
 					if (ref( $val->{$sf} ) eq 'ARRAY') {
@@ -746,12 +751,19 @@ know any details about it's version.
 As this is young module, new features are added in subsequent version. It's
 a good idea to specify version when using this module like this:
 
-  use Biblio::Isis 0.21
+  use Biblio::Isis 0.23
 
 Below is list of changes in specific version of module (so you can target
 older versions if you really have to):
 
 =over 8 
+
+=item 0.23
+
+Added C<hash_filter> to L</to_hash>
+
+Fixed bug with documented C<join_subfields_with> in L</new> which wasn't
+implemented
 
 =item 0.22
 

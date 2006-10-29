@@ -3,7 +3,7 @@
 use strict;
 use blib;
 
-use Test::More tests => 174;
+use Test::More tests => 181;
 use File::Spec;
 
 BEGIN {
@@ -246,6 +246,7 @@ __END_OF_ASCII__
 ok(my $hash2 = $isis->to_hash({ mfn => $isis->mfn }), 'to_hash(mfn)');
 is_deeply( $hash2, $hash, 'same hash' );
 
+# test to_hash( include_subfields )
 ok($hash = $isis->to_hash({ mfn => $isis->mfn, include_subfields => 1 }), 'to_hash(mfn,include_subfields)');
 diag "to_hash = ",Dumper( $hash ) if ($debug);
 is_deeply( $hash, {
@@ -265,6 +266,7 @@ is_deeply( $hash, {
   ],
 }, 'hash is_deeply');
 
+# test to_hash( join_subfields_with )
 ok($hash = $isis->to_hash({ mfn => $isis->mfn, join_subfields_with => ' ; ' }), 'to_hash(mfn,join_subfields_with)');
 diag "to_hash = ",Dumper( $hash ) if ($debug);
 is_deeply( $hash, {
@@ -276,5 +278,50 @@ is_deeply( $hash, {
               { a => "901a-3" },
             ],
    902   => [{ a => "a1 ; a2 ; a3 ; a4 ; a5", b => "b1 ; b2", c => "c1" }],
+}, 'hash is_deeply');
+
+my $isis2;
+ok($isis2 = Biblio::Isis->new (
+	isisdb => $path_winisis,
+	join_subfields_with => ' ; ',
+),"new( join_subfields_with )");
+ok($isis2->{record} = $isis->{record}, "copy record");
+ok($isis2->{current_mfn} = $isis->{current_mfn}, "copy current_mfn");
+
+ok($hash = $isis2->to_hash( $isis->mfn ), 'to_hash(mfn)');
+diag "to_hash = ",Dumper( $hash ) if ($debug);
+is_deeply( $hash, {
+   "000" => [42],
+   900   => [{ a => "900a", b => "900b", c => "900c" }],
+   901   => [
+              { a => "901a-1", b => "901b-1", c => "901c-1" },
+              { a => "901a-2", b => "901b-2" },
+              { a => "901a-3" },
+            ],
+   902   => [{ a => "a1 ; a2 ; a3 ; a4 ; a5", b => "b1 ; b2", c => "c1" }],
+}, 'hash is_deeply');
+
+# test to_hash( hash_filter )
+ok($hash = $isis->to_hash({ mfn => $isis->mfn, hash_filter => sub {
+	my ($l,$f) = @_;
+	if ($f == 900) {
+		$l =~ s/0/o/g;
+	} elsif ($f == 901) {
+		$l =~ s/1/i/g;
+	} elsif ($f == 902) {
+		$l =~ s/2/s/g;
+	}
+	return $l;
+}}), 'to_hash(mfn,hash_filter)');
+diag "to_hash = ",Dumper( $hash ) if ($debug);
+is_deeply( $hash, {
+   "000" => [42],
+   900   => [{ a => "9ooa", b => "9oob", c => "9ooc" }],
+   901   => [
+              { a => "90ia-i", b => "90ib-i", c => "90ic-i" },
+              { a => "90ia-2", b => "90ib-2" },
+              { a => "90ia-3" },
+            ],
+   902   => [{ a => ["a1", "as", "a3", "a4", "a5"], b => ["b1", "bs"], c => "c1" }],
 }, 'hash is_deeply');
 

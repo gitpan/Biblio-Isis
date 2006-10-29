@@ -17,9 +17,9 @@ BEGIN {
 }
 
 my %opt;
-getopts('dn:', \%opt);
+getopts('do:l:', \%opt);
 
-my $isisdb = shift @ARGV || die "usage: $0 [-n number] [-d] /path/to/isis/BIBL\n";
+my $isisdb = shift @ARGV || die "usage: $0 [-o offset] [-l limit] [-d] /path/to/isis/BIBL\n";
 
 my $isis = Biblio::Isis->new (
 	isisdb => $isisdb,
@@ -30,9 +30,9 @@ my $isis = Biblio::Isis->new (
 
 print "rows: ",$isis->count,"\n\n";
 
-my $min = 1;
+my $min = $opt{o} || 1;
 my $max = $isis->count;
-$max = $opt{n} if ($opt{n});
+$max = ( $min + $opt{l} - 1 ) if ($opt{l});
 
 for my $mfn ($min .. $max) {
 	print STDERR Dumper($isis->to_hash($mfn)),"\n" if ($opt{'d'});
