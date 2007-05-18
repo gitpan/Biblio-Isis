@@ -7,7 +7,7 @@ use File::Glob qw(:globally :nocase);
 BEGIN {
 	use Exporter ();
 	use vars qw ($VERSION @ISA @EXPORT @EXPORT_OK %EXPORT_TAGS);
-	$VERSION     = 0.23;
+	$VERSION     = 0.24;
 	@ISA         = qw (Exporter);
 	#Give a hoot don't pollute, do not export more than needed by default
 	@EXPORT      = qw ();
@@ -128,6 +128,10 @@ Define delimiter which will be used to join repeatable subfields. This
 option is included to support lagacy application written against version
 older than 0.21 of this module. By default, it disabled. See L</to_hash>.
 
+=item ignore_empty_subfields
+
+Remove all empty subfields while reading from ISIS file.
+
 =back
 
 =cut
@@ -139,7 +143,7 @@ sub new {
 
 	croak "new needs database name (isisdb) as argument!" unless ({@_}->{isisdb});
 
-	foreach my $v (qw{isisdb debug include_deleted hash_filter join_subfields_with}) {
+	foreach my $v (qw{isisdb debug include_deleted hash_filter join_subfields_with ignore_empty_subfields}) {
 		$self->{$v} = {@_}->{$v} if defined({@_}->{$v});
 	}
 
@@ -384,7 +388,15 @@ sub fetch {
 		# skip zero-sized fields
 		next if ($FieldLEN[$i] == 0);
 
-		push @{$self->{record}->{$FieldTAG[$i]}}, substr($buff,$FieldPOS[$i],$FieldLEN[$i]);
+		my $v = substr($buff,$FieldPOS[$i],$FieldLEN[$i]);
+
+		if ( $self->{ignore_empty_subfields} ) {
+			$v =~ s/(\^\w)+(\^\w)/$2/g;
+			$v =~ s/\^\w$//;			# last on line?
+			next if ($v eq '');
+		}
+
+		push @{$self->{record}->{$FieldTAG[$i]}}, $v;
 	}
 
 	$self->{'current_mfn'} = $mfn;
@@ -757,6 +769,10 @@ Below is list of changes in specific version of module (so you can target
 older versions if you really have to):
 
 =over 8 
+
+=item 0.24
+
+Added C<ignore_empty_subfields>
 
 =item 0.23
 
